@@ -1,0 +1,9 @@
+body {
+  font-family: "Inter", sans-serif, Courier, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #ffffff; /* Set your preferred light background color */
+    color: #000000; /* Set your preferred light text color */
+  }
+}

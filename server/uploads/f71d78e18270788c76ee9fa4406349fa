@@ -1,0 +1,83 @@
+router.post('/courses', async (req, res) => {
+  try {
+    console.log('Incoming request body:', req.body);
+
+    const { title, description, teacher, students } = req.body;
+
+    // You may want to validate the incoming data here
+    console.log('Creating a new course with the following data:', { title, description, teacher, students });
+
+    // Fetch teacher's username
+    const teacherUsername = await Teacher.findById(teacher, 'username');
+
+    // Convert the 'students' array to an array of objects with _id and username
+    const studentDetails = await Promise.all(students.map(async studentId => {
+      const student = await Student.findById(studentId, 'username');
+      return {
+        _id: new mongoose.Types.ObjectId(studentId),
+        username: student.username,
+      };
+    }));
+
+    const newCourse = new Course({
+      title,
+      description,
+      teacher: {
+        _id: new mongoose.Types.ObjectId(teacher),
+        username: teacherUsername.username,
+      },
+      students: studentDetails,
+      // Add more fields as needed
+    });
+
+    const savedCourse = await newCourse.save();
+
+    // Use aggregate pipeline for more complex population
+    const populatedCourse = await Course.aggregate([
+      { $match: { _id: savedCourse._id } },
+      {
+        $lookup: {
+          from: 'students',
+          localField: 'students._id',
+          foreignField: '_id',
+          as: 'students',
+        },
+      },
+      {
+        $addFields: {
+          students: {
+            $map: {
+              input: '$students',
+              as: 'student',
+              in: {
+                _id: '$$student._id',
+                username: '$$student.username',
+              },
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'teachers',
+          localField: 'teacher._id',
+          foreignField: '_id',
+          as: 'teacher',
+        },
+      },
+      {
+        $addFields: {
+          teacher: {
+            $first: '$teacher',
+          },
+        },
+      },
+    ]);
+
+    console.log('Course created successfully:', populatedCourse[0]);
+    res.status(201).json(populatedCourse[0]);
+  } catch (error) {
+    console.error('Error creating course:', error);
+    res.status(400).json({ message: error.message });
+  }
+});
